@@ -52,16 +52,21 @@ router.put("/:id", auth, async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    // Check if user owns the profile or is admin
+    // Authorization check
     if (user.id !== req.user.id && req.user.role !== "admin") {
       return res.status(401).json({ msg: "Not authorized" });
     }
 
+    // Update fields
     user.firstName = firstName || user.firstName;
     user.lastName = lastName || user.lastName;
     user.bio = bio || user.bio;
     user.specialization = specialization || user.specialization;
-    user.availableSlots = availableSlots || user.availableSlots;
+
+    // Only update slots for counselors
+    if (user.role === "counselor") {
+      user.availableSlots = availableSlots || user.availableSlots;
+    }
 
     await user.save();
     res.json(user);
@@ -70,5 +75,43 @@ router.put("/:id", auth, async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+
+// Admin endpoint to generate slots for all counselors
+router.post("/counselors/generate-slots", auth, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ msg: "Admin access required" });
+    }
+
+    const counselors = await User.find({ role: "counselor" });
+    for (const counselor of counselors) {
+      counselor.availableSlots = generateDemoSlots();
+      await counselor.save();
+    }
+
+    res.json({ msg: `Updated slots for ${counselors.length} counselors` });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// Reuse the same slot generator from User model
+function generateDemoSlots() {
+  const slots = [];
+  const today = new Date();
+  for (let i = 1; i <= 7; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    if (date.getDay() === 0 || date.getDay() === 6) continue;
+    const dateStr = date.toISOString().split("T")[0];
+    slots.push(
+      `${dateStr}T10:00:00`,
+      `${dateStr}T14:00:00`,
+      `${dateStr}T16:00:00`
+    );
+  }
+  return slots;
+}
 
 module.exports = router;

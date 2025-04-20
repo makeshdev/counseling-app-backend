@@ -32,7 +32,13 @@ router.post(
         return res.status(404).json({ msg: "Counselor not found" });
       }
 
-      // Check if slot is available
+      // Check if slot is in counselor's available slots
+      const slotDateTime = `${date}T${time}:00`;
+      if (!counselorUser.availableSlots.includes(slotDateTime)) {
+        return res.status(400).json({ msg: "Time slot not available" });
+      }
+
+      // Check if slot is already booked
       const existingAppointment = await Appointment.findOne({
         counselor,
         date,
@@ -51,7 +57,7 @@ router.post(
         time,
         duration: duration || 60,
         type,
-        meetingLink: generateMeetingLink(), // Implement this function
+        meetingLink: generateMeetingLink(),
       });
 
       await appointment.save();
